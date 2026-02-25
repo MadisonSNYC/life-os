@@ -159,11 +159,28 @@ export async function createProject(formData: {
   return data
 }
 
-export async function updateProject(id: string, updates: { name?: string; emoji?: string; type?: string }) {
+export async function updateProject(id: string, updates: { name?: string; emoji?: string; type?: string; space_id?: string }) {
   const supabase = await createClient()
   const { error } = await supabase.from('projects').update(updates).eq('id', id)
   if (error) throw error
   revalidatePath('/dashboard')
+  revalidatePath('/spaces')
+}
+
+export async function moveProject(projectId: string, targetSpaceId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ space_id: targetSpaceId })
+    .eq('id', projectId)
+    .eq('owner_id', user.id)
+
+  if (error) throw error
+  revalidatePath('/dashboard')
+  revalidatePath('/spaces')
 }
 
 export async function deleteProject(id: string) {

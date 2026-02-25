@@ -70,3 +70,31 @@ export type Profile = {
   avatar_url: string | null
   created_at: string
 }
+
+export type ChatMessage = {
+  id: string
+  user_id: string
+  project_id: string | null
+  role: 'user' | 'assistant'
+  content: string
+  metadata: {
+    attachments?: Array<{ url: string; type: string; name: string; preview?: string }>
+    created_items?: string[]
+    created_project?: string | null
+    has_planning_page?: boolean
+  }
+  created_at: string
+}
+
+export type PlanningPage = {
+  id: string
+  project_id: string
+  created_by: string
+  title: string
+  content: string
+  content_type: 'markdown' | 'html'
+  metadata: Record<string, any>
+  position: number
+  created_at: string
+  updated_at: string
+}

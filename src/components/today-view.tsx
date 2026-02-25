@@ -1,66 +1,98 @@
 'use client'
 
 import { useState } from 'react'
-import { toggleItem, updateItem } from '@/lib/actions'
 import { useRouter } from 'next/navigation'
-import { Check, Circle, AlertCircle, Clock } from 'lucide-react'
+import { AlertCircle, Clock, Check, ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { TaskCard } from './task-card'
 import type { Item, Project } from '@/lib/types'
 
-const priorityColors: Record<string, string> = {
-  urgent: 'text-red-400 border-red-400',
-  high: 'text-orange-400 border-orange-400',
-  medium: 'text-yellow-400 border-yellow-400',
-  low: 'text-blue-400 border-blue-400',
-  none: 'text-gray-500 border-gray-600',
+type GroupedItems = {
+  project: { id: string; name: string; emoji: string; spaceName?: string } | null
+  items: Item[]
+}
+
+function groupByProject(items: Item[]): GroupedItems[] {
+  const groups: Record<string, GroupedItems> = {}
+
+  for (const item of items) {
+    const proj = (item as any).project
+    const key = proj?.id || 'none'
+
+    if (!groups[key]) {
+      groups[key] = {
+        project: proj ? {
+          id: proj.id,
+          name: proj.name,
+          emoji: proj.emoji,
+          spaceName: proj.space?.name,
+        } : null,
+        items: [],
+      }
+    }
+    groups[key].items.push(item)
+  }
+
+  return Object.values(groups).sort((a, b) => {
+    if (!a.project) return 1
+    if (!b.project) return -1
+    return a.project.name.localeCompare(b.project.name)
+  })
+}
+
+function ProjectGroup({ group, defaultExpanded = true }: { group: GroupedItems; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+
+  return (
+    <div className="mb-3">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-1 py-2 hover:bg-gray-900/30 rounded-lg transition-colors group"
+      >
+        {expanded ? (
+          <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+        ) : (
+          <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+        )}
+        {group.project ? (
+          <>
+            <span className="text-sm">{group.project.emoji}</span>
+            <Link
+              href={`/project/${group.project.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sm font-medium text-gray-200 hover:text-white truncate"
+            >
+              {group.project.name}
+            </Link>
+            {group.project.spaceName && (
+              <span className="text-[10px] text-gray-600">{group.project.spaceName}</span>
+            )}
+          </>
+        ) : (
+          <span className="text-sm font-medium text-gray-400">No Project</span>
+        )}
+        <span className="text-[10px] text-gray-600 ml-auto">{group.items.length}</span>
+      </button>
+
+      {expanded && (
+        <div className="space-y-1.5 mt-1 ml-1">
+          {group.items.map(item => (
+            <TaskCard key={item.id} item={item} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function TodayView({ items, projects }: { items: Item[]; projects: Project[] }) {
-  const router = useRouter()
-  const [optimistic, setOptimistic] = useState<Record<string, boolean>>({})
-
   const overdue = items.filter(i => i.due_date && i.due_date < new Date().toISOString().split('T')[0] && i.status !== 'done')
   const today = items.filter(i => i.due_date === new Date().toISOString().split('T')[0] && i.status !== 'done')
   const done = items.filter(i => i.status === 'done')
 
-  async function handleToggle(id: string) {
-    setOptimistic(prev => ({ ...prev, [id]: true }))
-    await toggleItem(id)
-    router.refresh()
-  }
-
-  function ItemRow({ item }: { item: Item }) {
-    const isDone = item.status === 'done' || optimistic[item.id]
-    const project = item.project as any
-
-    return (
-      <div className="flex items-start gap-3 py-3 px-1 group">
-        <button
-          onClick={() => handleToggle(item.id)}
-          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-            isDone
-              ? 'bg-indigo-600 border-indigo-600'
-              : priorityColors[item.priority] || priorityColors.none
-          }`}
-        >
-          {isDone && <Check className="w-3 h-3 text-white" />}
-        </button>
-        <div className="flex-1 min-w-0">
-          <Link href={`/project/${item.project_id}`}>
-            <p className={`text-sm ${isDone ? 'text-gray-500 line-through' : 'text-white'}`}>
-              {item.title}
-            </p>
-          </Link>
-          {project && (
-            <p className="text-xs text-gray-500 mt-0.5">
-              {project.emoji} {project.name}
-              {project.space && ` · ${project.space.name}`}
-            </p>
-          )}
-        </div>
-      </div>
-    )
-  }
+  const overdueGroups = groupByProject(overdue)
+  const todayGroups = groupByProject(today)
+  const doneGroups = groupByProject(done)
 
   if (items.length === 0) {
     return (
@@ -74,40 +106,40 @@ export function TodayView({ items, projects }: { items: Item[]; projects: Projec
 
   return (
     <div className="space-y-6">
-      {overdue.length > 0 && (
+      {overdueGroups.length > 0 && (
         <section>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 px-1">
             <AlertCircle className="w-4 h-4 text-red-400" />
             <h2 className="text-sm font-medium text-red-400">Overdue ({overdue.length})</h2>
           </div>
-          <div className="bg-gray-900/50 rounded-xl divide-y divide-gray-800/50 px-3">
-            {overdue.map(item => <ItemRow key={item.id} item={item} />)}
-          </div>
+          {overdueGroups.map((group, i) => (
+            <ProjectGroup key={group.project?.id || `none-${i}`} group={group} />
+          ))}
         </section>
       )}
 
-      {today.length > 0 && (
+      {todayGroups.length > 0 && (
         <section>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 px-1">
             <Clock className="w-4 h-4 text-indigo-400" />
             <h2 className="text-sm font-medium text-gray-300">Due Today ({today.length})</h2>
           </div>
-          <div className="bg-gray-900/50 rounded-xl divide-y divide-gray-800/50 px-3">
-            {today.map(item => <ItemRow key={item.id} item={item} />)}
-          </div>
+          {todayGroups.map((group, i) => (
+            <ProjectGroup key={group.project?.id || `none-${i}`} group={group} />
+          ))}
         </section>
       )}
 
-      {done.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-2">
-            <Check className="w-4 h-4 text-green-400" />
-            <h2 className="text-sm font-medium text-gray-500">Done ({done.length})</h2>
-          </div>
-          <div className="bg-gray-900/50 rounded-xl divide-y divide-gray-800/50 px-3">
-            {done.map(item => <ItemRow key={item.id} item={item} />)}
-          </div>
-        </section>
+      {doneGroups.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400 mb-2 flex items-center gap-1.5 px-1">
+            <Check className="w-3 h-3" />
+            Completed ({done.length})
+          </summary>
+          {doneGroups.map((group, i) => (
+            <ProjectGroup key={group.project?.id || `none-${i}`} group={group} defaultExpanded={false} />
+          ))}
+        </details>
       )}
     </div>
   )

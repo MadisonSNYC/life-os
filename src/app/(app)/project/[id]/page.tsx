@@ -7,6 +7,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const { id } = await params
 
   try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) notFound()
+
     const [project, items, shares] = await Promise.all([
       getProject(id),
       getItems(id),
@@ -15,9 +19,23 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
     if (!project) notFound()
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    const isOwner = project.owner_id === user?.id
+    // Fetch planning pages
+    const { data: planningPages } = await supabase
+      .from('planning_pages')
+      .select('*')
+      .eq('project_id', id)
+      .order('created_at', { ascending: false })
+
+    // Fetch chat messages for this project
+    const { data: chatMessages } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('project_id', id)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(50)
+
+    const isOwner = project.owner_id === user.id
 
     return (
       <ProjectView
@@ -25,6 +43,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         items={items || []}
         shares={shares || []}
         isOwner={isOwner}
+        planningPages={planningPages || []}
+        chatMessages={chatMessages || []}
       />
     )
   } catch {

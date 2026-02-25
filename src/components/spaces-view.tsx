@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Plus, ChevronRight, Users } from 'lucide-react'
+import { Plus, ChevronRight, ChevronDown, Users } from 'lucide-react'
 import { createSpace, createProject } from '@/lib/actions'
 import { useRouter } from 'next/navigation'
 import type { Space, Project } from '@/lib/types'
@@ -32,6 +32,7 @@ export function SpacesView({ spaces, projects, sharedProjects }: {
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectType, setNewProjectType] = useState('standard')
   const [newProjectEmoji, setNewProjectEmoji] = useState('📋')
+  const [expandedSpaces, setExpandedSpaces] = useState<Record<string, boolean>>({})
 
   async function handleCreateSpace(e: React.FormEvent) {
     e.preventDefault()
@@ -60,19 +61,31 @@ export function SpacesView({ spaces, projects, sharedProjects }: {
     <div className="space-y-6">
       {spaces.map((space) => {
         const spaceProjects = projects.filter(p => p.space_id === space.id)
+        const isExpanded = expandedSpaces[space.id] !== false // default expanded
         return (
           <section key={space.id}>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                <span>{space.emoji}</span>
-                <span>{space.name}</span>
-                <span className="text-xs text-gray-500 font-normal">({spaceProjects.length})</span>
-              </h2>
+              <button
+                onClick={() => setExpandedSpaces(prev => ({ ...prev, [space.id]: !isExpanded }))}
+                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                )}
+                <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                  <span>{space.emoji}</span>
+                  <span>{space.name}</span>
+                  <span className="text-xs text-gray-500 font-normal">({spaceProjects.length})</span>
+                </h2>
+              </button>
               <button
                 onClick={() => {
                   setShowNewProject(space.id)
                   setNewProjectEmoji('📋')
                   setNewProjectType('standard')
+                  setExpandedSpaces(prev => ({ ...prev, [space.id]: true }))
                 }}
                 className="text-gray-400 hover:text-white p-1"
               >
@@ -80,70 +93,74 @@ export function SpacesView({ spaces, projects, sharedProjects }: {
               </button>
             </div>
 
-            {showNewProject === space.id && (
-              <form onSubmit={handleCreateProject} className="bg-gray-900 rounded-xl p-4 mb-3 space-y-3">
-                <input
-                  autoFocus
-                  type="text"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  placeholder="Project name"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <div className="flex gap-2 flex-wrap">
-                  {PROJECT_TYPES.map(t => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => {
-                        setNewProjectType(t.value)
-                        setNewProjectEmoji(t.emoji)
-                      }}
-                      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                        newProjectType === t.value
-                          ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
-                          : 'border-gray-700 text-gray-400'
-                      }`}
-                    >
-                      {t.emoji} {t.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <button type="submit" className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-500">
-                    Create
-                  </button>
-                  <button type="button" onClick={() => setShowNewProject(null)} className="text-gray-400 text-sm px-4 py-2">
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
+            {isExpanded && (
+              <>
+                {showNewProject === space.id && (
+                  <form onSubmit={handleCreateProject} className="bg-gray-900 rounded-xl p-4 mb-3 space-y-3">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      placeholder="Project name"
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <div className="flex gap-2 flex-wrap">
+                      {PROJECT_TYPES.map(t => (
+                        <button
+                          key={t.value}
+                          type="button"
+                          onClick={() => {
+                            setNewProjectType(t.value)
+                            setNewProjectEmoji(t.emoji)
+                          }}
+                          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                            newProjectType === t.value
+                              ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400'
+                              : 'border-gray-700 text-gray-400'
+                          }`}
+                        >
+                          {t.emoji} {t.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="submit" className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-500">
+                        Create
+                      </button>
+                      <button type="button" onClick={() => setShowNewProject(null)} className="text-gray-400 text-sm px-4 py-2">
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
 
-            <div className="space-y-1">
-              {spaceProjects.map((project) => (
-                <Link
-                  key={project.id}
-                  href={`/project/${project.id}`}
-                  className="flex items-center gap-3 bg-gray-900/50 hover:bg-gray-900 rounded-xl px-4 py-3 transition-colors group"
-                >
-                  <span className="text-lg">{project.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{project.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{project.type}</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400" />
-                </Link>
-              ))}
-              {spaceProjects.length === 0 && !showNewProject && (
-                <button
-                  onClick={() => setShowNewProject(space.id)}
-                  className="w-full text-center py-4 text-sm text-gray-500 hover:text-gray-400"
-                >
-                  + Add a project
-                </button>
-              )}
-            </div>
+                <div className="space-y-1">
+                  {spaceProjects.map((project) => (
+                    <Link
+                      key={project.id}
+                      href={`/project/${project.id}`}
+                      className="flex items-center gap-3 bg-gray-900/50 hover:bg-gray-900 rounded-xl px-4 py-3 transition-colors group"
+                    >
+                      <span className="text-lg">{project.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{project.name}</p>
+                        <p className="text-xs text-gray-500 capitalize">{project.type}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400" />
+                    </Link>
+                  ))}
+                  {spaceProjects.length === 0 && !showNewProject && (
+                    <button
+                      onClick={() => setShowNewProject(space.id)}
+                      className="w-full text-center py-4 text-sm text-gray-500 hover:text-gray-400"
+                    >
+                      + Add a project
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </section>
         )
       })}
